@@ -36,7 +36,7 @@ type ChainWriter interface {
 	LoadLastState(context.Context, uint64) error
 	WriteGenesisBlock(block *types.Block) error
 	InsertBlockAndSetHead(block *types.Block) error
-	InsertBlockWithoutSetHead(block *types.Block) error
+	InsertBlockWithoutSetHead(block *types.Block) ([]*types.Receipt, error)
 	WriteBlockAndSetHead(block *types.Block, receipts []*types.Receipt, logs []*types.Log,
 		state state.StateDB, emitHeadEvent bool) (status core.WriteStatus, err error)
 }
@@ -51,12 +51,14 @@ func (bc *blockchain) WriteGenesisBlock(block *types.Block) error {
 	return err
 }
 
+// TYLER: THIS ONE
+
 // InsertBlockWithoutSetHead inserts a block into the blockchain without setting it as the head.
-func (bc *blockchain) InsertBlockWithoutSetHead(block *types.Block) error {
+func (bc *blockchain) InsertBlockWithoutSetHead(block *types.Block) ([]*types.Receipt, error) {
 	// Call the private method to insert the block without setting it as the head.
-	_, _, err := bc.insertBlockWithoutSetHead(block)
+	receipts, _, err := bc.insertBlockWithoutSetHead(block)
 	// Return any error that might have occurred.
-	return err
+	return receipts, err
 }
 
 // insertBlockWithoutSetHead inserts a block into the blockchain without setting it as the head.

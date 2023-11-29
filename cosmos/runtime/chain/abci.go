@@ -21,9 +21,9 @@
 package chain
 
 import (
-	"fmt"
-
 	storetypes "cosmossdk.io/store/types"
+	"fmt"
+	"github.com/rs/zerolog/log"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
@@ -102,11 +102,17 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	}
 
 	// Insert the block into the chain.
-	if err = wbc.InsertBlockWithoutSetHead(ctx, block); err != nil {
+	receipts, err := wbc.InsertBlockWithoutSetHead(ctx, block)
+	if err != nil {
 		ctx.Logger().Error("failed to insert block", "err", err)
 		return &abci.ResponseProcessProposal{
 			Status: abci.ResponseProcessProposal_REJECT,
 		}, err
+	}
+
+	if wbc.hook != nil {
+		log.Info().Msgf("Running post-block hooks for %d receipts", len(receipts))
+		wbc.hook(receipts)
 	}
 
 	return &abci.ResponseProcessProposal{

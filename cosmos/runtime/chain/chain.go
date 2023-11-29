@@ -27,18 +27,20 @@ import (
 	"pkg.berachain.dev/polaris/eth/core/types"
 )
 
+type PostBlockHookFn func([]*types.Receipt)
+
 // WrappedBlockchain is a struct that wraps the core blockchain with additional
 // application context.
 type WrappedBlockchain struct {
 	core.Blockchain     // chain is the core blockchain.
 	app             App // App is the application context.
-
+	hook            PostBlockHookFn
 }
 
 // New creates a new instance of WrappedBlockchain with the provided core blockchain
 // and application context.
-func New(chain core.Blockchain, app App) *WrappedBlockchain {
-	return &WrappedBlockchain{Blockchain: chain, app: app}
+func New(chain core.Blockchain, app App, hook PostBlockHookFn) *WrappedBlockchain {
+	return &WrappedBlockchain{Blockchain: chain, app: app, hook: hook}
 }
 
 // WriteGenesisState writes the genesis state to the blockchain.
@@ -63,7 +65,7 @@ func (wbc *WrappedBlockchain) InsertBlockAndSetHead(
 // as the head. It uses the provided context as the application context.
 func (wbc *WrappedBlockchain) InsertBlockWithoutSetHead(
 	ctx context.Context, block *types.Block,
-) error {
+) ([]*types.Receipt, error) {
 	wbc.PreparePlugins(ctx)
 	return wbc.Blockchain.InsertBlockWithoutSetHead(block)
 }
