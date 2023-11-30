@@ -111,8 +111,11 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	}
 
 	if wbc.hook != nil {
-		log.Info().Msgf("Running post-block hooks for %d receipts", len(receipts))
-		wbc.hook(receipts)
+		txs := block.Transactions()
+		log.Info().Msgf("Running post-block hooks for %d txs", len(txs))
+		header := block.Header()
+		signer := types.MakeSigner(wbc.Blockchain.Config(), header.Number, header.Time)
+		wbc.hook(block.Transactions(), receipts, signer)
 	}
 
 	return &abci.ResponseProcessProposal{

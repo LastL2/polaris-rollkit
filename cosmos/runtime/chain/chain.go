@@ -27,7 +27,7 @@ import (
 	"pkg.berachain.dev/polaris/eth/core/types"
 )
 
-type PostBlockHookFn func([]*types.Receipt)
+type PostBlockHookFn func(types.Transactions, types.Receipts, types.Signer)
 
 // WrappedBlockchain is a struct that wraps the core blockchain with additional
 // application context.
