@@ -23,6 +23,7 @@ package miner
 
 import (
 	storetypes "cosmossdk.io/store/types"
+	"fmt"
 
 	abci "github.com/cometbft/cometbft/abci/types"
 
@@ -45,6 +46,7 @@ func (m *Miner) PrepareProposal(
 		ethGasUsed        uint64
 	)
 
+	fmt.Println("here")
 	// We have to run the PreBlocker && BeginBlocker to get the chain into the state
 	// it'll be in when the EVM transaction actually runs.
 	if _, err = m.app.PreBlocker(ctx, &abci.RequestFinalizeBlock{
@@ -60,22 +62,29 @@ func (m *Miner) PrepareProposal(
 		return nil, err
 	}
 
+	fmt.Println("here2")
+
 	ctx.GasMeter().RefundGas(ctx.GasMeter().GasConsumed(), "prepare proposal")
+	fmt.Println("here33")
 	ctx.BlockGasMeter().RefundGas(ctx.BlockGasMeter().GasConsumed(), "prepare proposal")
+	fmt.Println("here3")
 	ctx = ctx.WithKVGasConfig(storetypes.GasConfig{}).
 		WithTransientKVGasConfig(storetypes.GasConfig{}).
 		WithGasMeter(storetypes.NewInfiniteGasMeter())
 
+	fmt.Println("here4")
 	// We have to prime the state plugin.
 	if err = m.keeper.SetLatestQueryContext(ctx); err != nil {
 		return nil, err
 	}
 
+	fmt.Println("here5")
 	// Trigger the geth miner to build a block.
 	if payloadEnvelopeBz, ethGasUsed, err = m.buildBlock(ctx); err != nil {
 		return nil, err
 	}
 
+	fmt.Println("here6")
 	// Process the validator messages.
 	if valTxs, err = m.processValidatorMsgs(ctx, req.MaxTxBytes, ethGasUsed, req.Txs); err != nil {
 		return nil, err
