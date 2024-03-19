@@ -22,8 +22,6 @@ package runtime
 
 import (
 	"context"
-	"time"
-
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 
@@ -165,11 +163,6 @@ func (p *Polaris) RegisterLifecycles(lcs []node.Lifecycle) {
 // StartServices starts the services of the Polaris struct.
 func (p *Polaris) StartServices() error {
 	go func() {
-		// TODO: these values are sensitive due to a race condition in the json-rpc ports opening.
-		// If the JSON-RPC opens before the first block is committed, hive tests will start failing.
-		// This needs to be fixed before mainnet as its ghetto af. If the block time is too long
-		// and this sleep is too short, it will cause hive tests to error out.
-		time.Sleep(5 * time.Second) //nolint:gomnd // as explained above.
 		if err := p.ExecutionLayer.Start(); err != nil {
 			panic(err)
 		}
