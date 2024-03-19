@@ -22,6 +22,7 @@ package chain
 
 import (
 	storetypes "cosmossdk.io/store/types"
+	"fmt"
 	"github.com/rs/zerolog/log"
 
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -77,18 +78,24 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 			continue
 		}
 
-		protoEnvelope := sdkTx.GetMsgs()[0]
-		if env, ok := protoEnvelope.(*evmtypes.WrappedPayloadEnvelope); ok {
-			envelope = env.UnwrapPayload()
-			break
+		log.Info().Msgf("looping over %d sdk.Msg's", len(sdkTx.GetMsgs()))
+		for _, sdkMsg := range sdkTx.GetMsgs() {
+			if env, ok := sdkMsg.(*evmtypes.WrappedPayloadEnvelope); ok {
+				envelope = env.UnwrapPayload()
+				break
+			}
 		}
 	}
 
 	// If the proposal doesn't contain an ethereum envelope, we should just move on.
 	if envelope == nil {
+		log.Info().Msg("ERROR COULDN'T FIND ENVELOPE")
+		fmt.Println("couldn't find envelope...")
 		return &abci.ResponseProcessProposal{
 			Status: abci.ResponseProcessProposal_ACCEPT,
 		}, nil
+	} else {
+		log.Info().Msg("success!! FOUND ENVELOPE")
 	}
 
 	// Convert it to a block.
