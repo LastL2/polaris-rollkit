@@ -22,8 +22,6 @@ package chain
 
 import (
 	storetypes "cosmossdk.io/store/types"
-	"github.com/rs/zerolog/log"
-
 	abci "github.com/cometbft/cometbft/abci/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -111,8 +109,6 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	}
 
 	if wbc.hook != nil {
-		txs := block.Transactions()
-		log.Info().Msgf("Running post-block hooks for %d txs", len(txs))
 		header := block.Header()
 		signer := types.MakeSigner(wbc.Blockchain.Config(), header.Number, header.Time)
 		wbc.hook(block.Transactions(), receipts, signer)
