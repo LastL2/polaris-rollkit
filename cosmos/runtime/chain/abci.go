@@ -77,7 +77,6 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 			continue
 		}
 
-		log.Info().Msgf("looping over %d sdk.Msg's", len(sdkTx.GetMsgs()))
 		for _, sdkMsg := range sdkTx.GetMsgs() {
 			if env, ok := sdkMsg.(*evmtypes.WrappedPayloadEnvelope); ok {
 				envelope = env.UnwrapPayload()
@@ -91,8 +90,6 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 		return &abci.ResponseProcessProposal{
 			Status: abci.ResponseProcessProposal_ACCEPT,
 		}, nil
-	} else {
-		log.Info().Msg("success!! FOUND ENVELOPE")
 	}
 
 	// Convert it to a block.
