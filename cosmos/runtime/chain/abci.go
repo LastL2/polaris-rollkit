@@ -22,7 +22,6 @@ package chain
 
 import (
 	storetypes "cosmossdk.io/store/types"
-	"fmt"
 	"github.com/rs/zerolog/log"
 
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -89,8 +88,6 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 
 	// If the proposal doesn't contain an ethereum envelope, we should just move on.
 	if envelope == nil {
-		log.Info().Msg("ERROR COULDN'T FIND ENVELOPE")
-		fmt.Println("couldn't find envelope...")
 		return &abci.ResponseProcessProposal{
 			Status: abci.ResponseProcessProposal_ACCEPT,
 		}, nil
