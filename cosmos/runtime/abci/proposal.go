@@ -33,6 +33,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
+var sleepOnce = false
+
 // ProposalProvider is a struct that provides the abci functions required
 // for validators to propose blocks and validators/full nodes to process
 // said proposals.
@@ -130,8 +132,11 @@ func (pp *ProposalProvider) ProcessProposal(
 	// event but it is so small and the network latency will most definitely overshadow.
 	defer func() {
 		// TODO: This is a hack to fix race condition because the network latency is significantly smaller in rollup configuration.
-		pp.logger.Debug("Sleeping for 100ms here to fix race condition")
-		time.Sleep(time.Millisecond * 100)
+		if !sleepOnce {
+			sleepOnce = true
+			pp.logger.Debug("Sleeping for 1s here to fix race condition")
+			time.Sleep(1 * time.Second)
+		}
 		spf.SetLatestQueryContext(ctx)
 	}()
 
