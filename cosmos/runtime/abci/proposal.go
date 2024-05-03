@@ -94,7 +94,7 @@ func (pp *ProposalProvider) PrepareProposal(
 		return nil, err
 	}
 
-	// TODO: This is a hack to fix race condition because the network latency is significantly smaller in rollup configuration.
+	// TODO: This is a hack to fix race condition with gRPC server initialization
 	if !sleepOnce {
 		sleepOnce = true
 		pp.logger.Debug("Sleeping for 1s here to fix race condition")
