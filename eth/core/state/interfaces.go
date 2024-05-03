@@ -24,8 +24,9 @@ import (
 	"context"
 	"math/big"
 
-	"pkg.berachain.dev/polaris/eth/common"
-	libtypes "pkg.berachain.dev/polaris/lib/types"
+	libtypes "github.com/berachain/polaris/lib/types"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Plugin is a plugin which tracks the accounts (balances, nonces, codes, states) in the native
@@ -33,8 +34,6 @@ import (
 type Plugin interface {
 	// Plugin implements `libtypes.Controllable`.
 	libtypes.Controllable[string]
-	// Prepare prepares the state with the given `context`.
-	libtypes.Preparable
 	// Reset resets the state with the given `context`.
 	libtypes.Resettable
 	// Plugin implements `libtypes.Cloneable`.

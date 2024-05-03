@@ -29,14 +29,14 @@ import (
 
 	"cosmossdk.io/core/appmodule"
 
+	"github.com/berachain/polaris/cosmos/x/evm/keeper"
+	"github.com/berachain/polaris/cosmos/x/evm/types"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-
-	"pkg.berachain.dev/polaris/cosmos/x/evm/keeper"
-	"pkg.berachain.dev/polaris/cosmos/x/evm/types"
 )
 
 // ConsensusVersion defines the current x/evm module consensus version.
@@ -126,9 +126,9 @@ func (am AppModule) RegisterServices(registrar grpc.ServiceRegistrar) error {
 // ConsensusVersion implements AppModule/ConsensusVersion.
 func (AppModule) ConsensusVersion() uint64 { return ConsensusVersion }
 
-// SetLatestQueryContext prepares the application state for a check.
+// PrepareCheckState prepares the application state for a check.
 func (am AppModule) PrepareCheckState(ctx context.Context) error {
-	return am.keeper.SetLatestQueryContext(ctx)
+	return am.keeper.PrepareCheckState(ctx)
 }
 
 // Precommit performs precommit operations.

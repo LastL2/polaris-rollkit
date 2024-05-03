@@ -21,15 +21,16 @@
 package chain
 
 import (
-	storetypes "cosmossdk.io/store/types"
+	"fmt"
+
+	evmtypes "github.com/berachain/polaris/cosmos/x/evm/types"
+
 	abci "github.com/cometbft/cometbft/abci/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
-
-	evmtypes "pkg.berachain.dev/polaris/cosmos/x/evm/types"
-	"pkg.berachain.dev/polaris/eth/core/types"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 func (wbc *WrappedBlockchain) ProcessProposal(
@@ -38,31 +39,6 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	var (
 		err error
 	)
-
-	// We have to run the PreBlocker && BeginBlocker to get the chain into the state
-	// it'll be in when the EVM transaction actually runs.
-	if _, err = wbc.app.PreBlocker(ctx, &abci.RequestFinalizeBlock{
-		Txs:                req.Txs,
-		Time:               req.Time,
-		Misbehavior:        req.Misbehavior,
-		Height:             req.Height,
-		NextValidatorsHash: req.NextValidatorsHash,
-		ProposerAddress:    req.ProposerAddress,
-	}); err != nil {
-		return &abci.ResponseProcessProposal{
-			Status: abci.ResponseProcessProposal_REJECT,
-		}, err
-	} else if _, err = wbc.app.BeginBlocker(ctx); err != nil {
-		return &abci.ResponseProcessProposal{
-			Status: abci.ResponseProcessProposal_REJECT,
-		}, err
-	}
-
-	ctx.GasMeter().RefundGas(ctx.GasMeter().GasConsumed(), "process proposal")
-	ctx.BlockGasMeter().RefundGas(ctx.BlockGasMeter().GasConsumed(), "process proposal")
-	ctx = ctx.WithKVGasConfig(storetypes.GasConfig{}).
-		WithTransientKVGasConfig(storetypes.GasConfig{}).
-		WithGasMeter(storetypes.NewInfiniteGasMeter())
 
 	// Pull an execution payload out of the proposal.
 	var envelope *engine.ExecutionPayloadEnvelope
@@ -91,7 +67,7 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	}
 
 	// Convert it to a block.
-	var block *types.Block
+	var block *ethtypes.Block
 	if block, err = engine.ExecutableDataToBlock(*envelope.ExecutionPayload, nil, nil); err != nil {
 		ctx.Logger().Error("failed to build evm block", "err", err)
 		return &abci.ResponseProcessProposal{
@@ -100,7 +76,7 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	}
 
 	// Insert the block into the chain.
-	receipts, err := wbc.InsertBlockWithoutSetHead(ctx, block)
+    receipts, err := wbc.InsertBlockAndSetHead(block)
 	if err != nil {
 		ctx.Logger().Error("failed to insert block", "err", err)
 		return &abci.ResponseProcessProposal{

@@ -24,18 +24,19 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ethereum/go-ethereum/core/txpool"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/miner"
+	"github.com/berachain/polaris/eth/consensus"
+	pcore "github.com/berachain/polaris/eth/core"
+	"github.com/berachain/polaris/eth/node"
+	"github.com/berachain/polaris/eth/polar"
 
-	"pkg.berachain.dev/polaris/eth/common"
-	"pkg.berachain.dev/polaris/eth/consensus"
-	"pkg.berachain.dev/polaris/eth/core"
-	coretypes "pkg.berachain.dev/polaris/eth/core/types"
-	"pkg.berachain.dev/polaris/eth/log"
-	"pkg.berachain.dev/polaris/eth/node"
-	"pkg.berachain.dev/polaris/eth/polar"
-	"pkg.berachain.dev/polaris/eth/rpc"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type (
@@ -48,16 +49,17 @@ type (
 
 	// TxPool represents the `TxPool` that exists on the backend of the execution layer.
 	TxPool interface {
-		Add([]*coretypes.Transaction, bool, bool) []error
+		Add([]*ethtypes.Transaction, bool, bool) []error
 		Stats() (int, int)
 		SubscribeTransactions(ch chan<- core.NewTxsEvent, reorgs bool) event.Subscription
 		Status(hash common.Hash) txpool.TxStatus
 		Has(hash common.Hash) bool
+		Remove(common.Hash)
 	}
 
-	// ExecutionLayerNode is the entrypoint for the evm execution environment.
+	// NetworkingStack is the entrypoint for the evm execution environment.
 	NetworkingStack interface {
-		// IsExtRPCEnabled returns true if the networking stack is configured to expose JSON-RPC API.
+		// ExtRPCEnabled returns true if the networking stack is configured to expose JSON-RPC API.
 		ExtRPCEnabled() bool
 
 		// RegisterHandler manually registers a new handler into the networking stack.
@@ -66,13 +68,13 @@ type (
 		// RegisterAPIs registers JSON-RPC handlers for the networking stack.
 		RegisterAPIs([]rpc.API)
 
-		// RegisterLifecycles registers objects to have their lifecycle manged by the stack.
+		// RegisterLifecycles registers objects to have their lifecycle managed by the stack.
 		RegisterLifecycle(node.Lifecycle)
 
 		// Start starts the networking stack.
 		Start() error
 
-		// Close stops the networking stack
+		// Close stops the networking stack.
 		Close() error
 	}
 
@@ -86,8 +88,9 @@ type (
 
 	// Config struct holds the configuration for Polaris and Node.
 	Config struct {
-		Polar polar.Config
-		Node  node.Config
+		OptimisticExecution bool
+		Polar               polar.Config
+		Node                node.Config
 	}
 )
 
@@ -95,11 +98,11 @@ type (
 // It takes a client type, configuration, host chain, consensus engine, and log handler
 // as parameters. It returns a pointer to the ExecutionLayer and an error if any.
 func New(
-	client string, cfg any, host core.PolarisHostChain,
-	engine consensus.Engine, logHandler log.Handler,
+	client string, cfg any, host pcore.PolarisHostChain,
+	engine consensus.Engine, allowUnprotectedTxs bool, logger log.Logger,
 ) (*ExecutionLayer, error) {
 	clientFactories := map[string]func(
-		any, core.PolarisHostChain, consensus.Engine, log.Handler,
+		any, pcore.PolarisHostChain, consensus.Engine, bool, log.Logger,
 	) (*ExecutionLayer, error){
 		"geth": newGethExecutionLayer,
 	}
@@ -109,14 +112,14 @@ func New(
 		return nil, fmt.Errorf("unknown execution layer: %s", client)
 	}
 
-	return factory(cfg, host, engine, logHandler)
+	return factory(cfg, host, engine, allowUnprotectedTxs, logger)
 }
 
 // newGethExecutionLayer creates a new geth execution layer.
 // It returns a pointer to the ExecutionLayer and an error if any.
 func newGethExecutionLayer(
-	anyCfg any, host core.PolarisHostChain,
-	engine consensus.Engine, logHandler log.Handler,
+	anyCfg any, host pcore.PolarisHostChain,
+	engine consensus.Engine, allowUnprotectedTxs bool, logger log.Logger,
 ) (*ExecutionLayer, error) {
 	cfg, ok := anyCfg.(*Config)
 	if !ok {
@@ -132,25 +135,16 @@ func newGethExecutionLayer(
 	// In Polaris we don't use P2P at the geth level.
 	gethNode.SetP2PDisabled(true)
 
+	log.SetDefault(logger)
+
 	// Create a new Polaris backend
-	backend := polar.New(&cfg.Polar, host, engine, gethNode, logHandler)
+	backend := polar.New(&cfg.Polar, host, engine, gethNode, allowUnprotectedTxs)
 
 	// Return a new ExecutionLayer with the created gethNode and backend
 	return &ExecutionLayer{
 		stack:   gethNode,
 		backend: backend,
 	}, nil
-}
-
-// RegisterSyncStatusProvider registers a sync status provider to the backend of the
-// execution layer.
-func (el *ExecutionLayer) RegisterSyncStatusProvider(provider polar.SyncStatusProvider) {
-	el.backend.RegisterSyncStatusProvider(provider)
-}
-
-// RegisterLifecycle registers a lifecycle to the networking stack of the execution layer.
-func (el *ExecutionLayer) RegisterLifecycle(lifecycle node.Lifecycle) {
-	el.stack.RegisterLifecycle(lifecycle)
 }
 
 // Start starts the networking stack of the execution layer.
@@ -165,17 +159,12 @@ func (el *ExecutionLayer) Close() error {
 	return el.stack.Close()
 }
 
-// Miner returns the miner interface of the backend of the execution layer.
-func (el *ExecutionLayer) Miner() Miner {
-	return el.backend.Miner()
+// Backend returns the Polaris backend associated with the execution layer.
+func (el *ExecutionLayer) Backend() *polar.Polaris {
+	return el.backend
 }
 
-// TxPool returns the transaction pool interface of the backend of the execution layer.
-func (el *ExecutionLayer) TxPool() TxPool {
-	return el.backend.TxPool()
-}
-
-// Blockchain returns the blockchain interface of the backend of the execution layer.
-func (el *ExecutionLayer) Blockchain() core.Blockchain {
-	return el.backend.Blockchain()
+// Stack returns the NetworkingStack associated with the execution layer.
+func (el *ExecutionLayer) Stack() NetworkingStack {
+	return el.stack
 }

@@ -18,22 +18,9 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package params
+package precompile
 
-import "github.com/ethereum/go-ethereum/params"
-
-type (
-	// ChainConfig is the chain parameters config.
-	ChainConfig = params.ChainConfig
-	// Rules is the chain rules.
-	Rules = params.Rules
-)
-
-var (
-	// VersionWithMeta holds the textual version string including the metadata.
-	VersionWithMeta = params.VersionWithMeta
-	// VersionWithCommit holds the textual version string including the commit hash.
-	VersionWithCommit = params.VersionWithCommit
-	// InitialBaseFee is the initial base fee for the first block of the chain.
-	InitialBaseFee = params.InitialBaseFee
+const (
+	MetricKeyBase = "polaris_precompile"
+	MetricKeyTime = "polaris_precompile_time"
 )

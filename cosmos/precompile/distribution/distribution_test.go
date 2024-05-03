@@ -29,6 +29,12 @@ import (
 	sdkmath "cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 
+	testutil "github.com/berachain/polaris/cosmos/testutil"
+	pclog "github.com/berachain/polaris/cosmos/x/evm/plugins/precompile/log"
+	ethprecompile "github.com/berachain/polaris/eth/core/precompile"
+	"github.com/berachain/polaris/eth/core/vm"
+	"github.com/berachain/polaris/lib/utils"
+
 	"github.com/cosmos/cosmos-sdk/runtime"
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -44,12 +50,6 @@ import (
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
 	"github.com/ethereum/go-ethereum/common"
-
-	testutil "pkg.berachain.dev/polaris/cosmos/testutil"
-	pclog "pkg.berachain.dev/polaris/cosmos/x/evm/plugins/precompile/log"
-	ethprecompile "pkg.berachain.dev/polaris/eth/core/precompile"
-	"pkg.berachain.dev/polaris/eth/core/vm"
-	"pkg.berachain.dev/polaris/lib/utils"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -248,19 +248,27 @@ var _ = Describe("Distribution Precompile Test", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(res1[0].Denom).To(Equal(sdk.DefaultBondDenom))
 				rewards, _ := tokens.TruncateDecimal()
-				Expect(res1[0].Amount.Cmp(rewards[0].Amount.BigInt())).To(Equal(0))
+				expectedReward := rewards[0].Amount.BigInt()
+				Expect(res1[0].Amount.Cmp(expectedReward)).To(Equal(0))
 
 				res3, err := contract.GetAllDelegatorRewards(pCtx, common.BytesToAddress(addr))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(res3[0].Validator).To(Equal(common.BytesToAddress(valAddr)))
-				Expect(res3[0].Rewards[0].Amount).To(Equal(rewards[0].Amount.BigInt()))
+				Expect(res3[0].Rewards[0].Amount.Cmp(expectedReward)).To(Equal(0))
+
+				res4, err := contract.GetDelegatorValidatorReward(
+					pCtx, common.BytesToAddress(addr), common.BytesToAddress(valAddr),
+				)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res4[0].Denom).To(Equal(sdk.DefaultBondDenom))
+				Expect(res4[0].Amount.Cmp(expectedReward)).To(Equal(0))
 
 				res2, err := contract.WithdrawDelegatorReward(
 					pCtx, common.BytesToAddress(addr), common.BytesToAddress(valAddr),
 				)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(res2[0].Denom).To(Equal(sdk.DefaultBondDenom))
-				Expect(res2[0].Amount).To(Equal(rewards[0].Amount.BigInt()))
+				Expect(res2[0].Amount).To(Equal(expectedReward))
 			})
 		})
 

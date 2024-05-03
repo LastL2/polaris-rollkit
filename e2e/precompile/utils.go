@@ -25,7 +25,7 @@
 
 package utils
 
-import network "pkg.berachain.dev/polaris/e2e/localnet/network"
+import network "github.com/berachain/polaris/e2e/localnet/network"
 
 const (
 	polardConfigPath    = "polard/config/"
@@ -34,7 +34,7 @@ const (
 	containerName       = "goodcontainer"
 	polardHTTPAddress   = "8545/tcp"
 	polardWSAddress     = "8546/tcp"
-	goVersion           = "1.21.3"
+	goVersion           = "1.21.6"
 )
 
 // NewPolarisFixtureConfig returns a polaris fixture config.

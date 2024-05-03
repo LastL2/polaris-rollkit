@@ -28,18 +28,19 @@ import (
 
 	storetypes "cosmossdk.io/store/types"
 
+	"github.com/berachain/polaris/cosmos/store/snapmulti"
+	"github.com/berachain/polaris/cosmos/x/evm/plugins"
+	"github.com/berachain/polaris/cosmos/x/evm/plugins/state/events"
+	"github.com/berachain/polaris/cosmos/x/evm/types"
+	"github.com/berachain/polaris/eth/core"
+	ethstate "github.com/berachain/polaris/eth/core/state"
+	"github.com/berachain/polaris/lib/snapshot"
+	libtypes "github.com/berachain/polaris/lib/types"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"pkg.berachain.dev/polaris/cosmos/store/snapmulti"
-	"pkg.berachain.dev/polaris/cosmos/x/evm/plugins"
-	"pkg.berachain.dev/polaris/cosmos/x/evm/plugins/state/events"
-	"pkg.berachain.dev/polaris/cosmos/x/evm/types"
-	"pkg.berachain.dev/polaris/eth/common"
-	"pkg.berachain.dev/polaris/eth/core"
-	ethstate "pkg.berachain.dev/polaris/eth/core/state"
-	"pkg.berachain.dev/polaris/eth/crypto"
-	"pkg.berachain.dev/polaris/lib/snapshot"
-	libtypes "pkg.berachain.dev/polaris/lib/types"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const pluginRegistryKey = `statePlugin`
@@ -105,15 +106,17 @@ type plugin struct {
 	// keepers used for balance and account information.
 	ak AccountKeeper
 
-	// qfn allows for querying state a historical height.
-	latestQueryContext sdk.Context
-	qfn                func() func(height int64, prove bool) (sdk.Context, error)
-
 	// dbErr stores any error that is returned from state modifications on the underlying
 	// keepers.
 	dbErr error
 
 	mu sync.Mutex
+
+	stateCtx context.Context
+
+	// lqc is used for fulfilling
+	lqc sdk.Context
+	qfn func() func(height int64, prove bool) (sdk.Context, error)
 }
 
 // NewPlugin returns a plugin with the given context and keepers.
@@ -135,12 +138,6 @@ func NewPlugin(
 // SetupForPrecompiles sets the precompile plugin and the log factory on the state plugin.
 func (p *plugin) SetPrecompileLogFactory(plf events.PrecompileLogFactory) {
 	p.plf = plf
-}
-
-// Prepare sets up the context on the state plugin for use in JSON-RPC calls.
-// Prepare implements `core.StatePlugin`.
-func (p *plugin) Prepare(ctx context.Context) {
-	p.latestQueryContext = sdk.UnwrapSDKContext(ctx)
 }
 
 // Reset sets up the state plugin for execution of a new transaction. It sets up the snapshottable
@@ -520,6 +517,16 @@ func (p *plugin) IterateBalances(fn func(common.Address, *big.Int) bool) {
 // Historical State
 // =============================================================================
 
+func (p *plugin) SetStateOverride(ctx context.Context) {
+	p.stateCtx = ctx
+}
+
+func (p *plugin) GetOverridenState() core.StatePlugin {
+	sp := NewPlugin(p.ak, p.storeKey, p.qfn, p.plf)
+	sp.Reset(p.stateCtx)
+	return sp
+}
+
 // StateAtBlockNumber implements `core.StatePlugin`.
 func (p *plugin) StateAtBlockNumber(number uint64) (core.StatePlugin, error) {
 	var ctx sdk.Context
@@ -534,16 +541,15 @@ func (p *plugin) StateAtBlockNumber(number uint64) (core.StatePlugin, error) {
 	// won't be able to do this
 	// ontop of a state that has these updates for the block.
 	// TODO: Fix this.
-
 	int64Number := int64(number)
 	// TODO: the GTE may be hiding a larger issue with the timing of the NewHead channel stuff.
 	// Investigate and hopefully remove this GTE.
-	if int64Number >= p.latestQueryContext.BlockHeight() {
+	if int64Number >= p.lqc.BlockHeight() {
 		// TODO: Manager properly
-		if p.latestQueryContext.MultiStore() == nil {
-			ctx = p.latestQueryContext.WithEventManager(sdk.NewEventManager())
+		if p.lqc.MultiStore() == nil {
+			ctx = p.lqc.WithEventManager(sdk.NewEventManager())
 		} else {
-			ctx, _ = p.latestQueryContext.CacheContext()
+			ctx, _ = p.lqc.CacheContext()
 		}
 	} else {
 		// Get the query context at the given height.
@@ -556,8 +562,9 @@ func (p *plugin) StateAtBlockNumber(number uint64) (core.StatePlugin, error) {
 
 	// Create a State Plugin with the requested chain height.
 	sp := NewPlugin(p.ak, p.storeKey, p.qfn, p.plf)
+
 	// TODO: Manager properly
-	if p.latestQueryContext.MultiStore() != nil {
+	if p.lqc.MultiStore() != nil {
 		sp.Reset(ctx)
 	}
 	return sp, nil

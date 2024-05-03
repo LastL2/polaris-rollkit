@@ -30,19 +30,20 @@ import (
 	"testing"
 	"time"
 
+	bbindings "github.com/berachain/polaris/contracts/bindings/cosmos/precompile/bank"
+	bindings "github.com/berachain/polaris/contracts/bindings/cosmos/precompile/staking"
+	tbindings "github.com/berachain/polaris/contracts/bindings/testing"
+	network "github.com/berachain/polaris/e2e/localnet/network"
+	utils "github.com/berachain/polaris/e2e/precompile"
+
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
-	bbindings "pkg.berachain.dev/polaris/contracts/bindings/cosmos/precompile/bank"
-	bindings "pkg.berachain.dev/polaris/contracts/bindings/cosmos/precompile/staking"
-	tbindings "pkg.berachain.dev/polaris/contracts/bindings/testing"
-	network "pkg.berachain.dev/polaris/e2e/localnet/network"
-	utils "pkg.berachain.dev/polaris/e2e/precompile"
-	"pkg.berachain.dev/polaris/eth/common"
+	"github.com/ethereum/go-ethereum/common"
 
+	. "github.com/berachain/polaris/e2e/localnet/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	. "pkg.berachain.dev/polaris/e2e/localnet/utils"
 )
 
 func TestStakingPrecompile(t *testing.T) {
@@ -75,7 +76,7 @@ var _ = Describe("Staking", func() {
 	})
 
 	AfterEach(func() {
-		// Dump logs and stop the containter here.
+		// Dump logs and stop the container here.
 		if !CurrentSpecReport().Failure.IsZero() {
 			logs, err := tf.DumpLogs()
 			Expect(err).ToNot(HaveOccurred())
@@ -113,6 +114,7 @@ var _ = Describe("Staking", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 		ExpectSuccessReceipt(tf.EthClient(), tx)
+		Expect(tf.WaitForBlock(1)).To(Succeed())
 
 		ude, err := stakingPrecompile.GetUnbondingDelegation(
 			nil,

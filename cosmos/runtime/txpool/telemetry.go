@@ -18,18 +18,10 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package hexutil
+package txpool
 
-import (
-	"github.com/ethereum/go-ethereum/common/hexutil"
-)
-
-type (
-	Bytes = hexutil.Bytes
-	Uint  = hexutil.Uint
-)
-
-var (
-	MustDecode = hexutil.MustDecode
-	Decode     = hexutil.Decode
+const (
+	MetricKeyMempoolFull      = "polaris_cometbft_mempool_full"
+	MetricKeyBroadcastFailure = "polaris_cometbft_broadcast_failure"
+	MetricKeyTimeShouldEject  = "polaris_cometbft_time_should_eject"
 )

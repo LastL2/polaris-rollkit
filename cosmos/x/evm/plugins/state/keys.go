@@ -21,8 +21,9 @@
 package state
 
 import (
-	types "pkg.berachain.dev/polaris/cosmos/x/evm/types"
-	"pkg.berachain.dev/polaris/eth/common"
+	types "github.com/berachain/polaris/cosmos/x/evm/types"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // NOTE: we use copy to build keys for max performance: https://github.com/golang/go/issues/55905
@@ -66,7 +67,7 @@ func AddressFromSlotKey(key []byte) common.Address {
 	return common.BytesToAddress(key[1 : 1+common.AddressLength])
 }
 
-// CodeHashKeyFor defines the full key under which an addreses codehash is stored.
+// CodeHashKeyFor defines the full key under which an addresses codehash is stored.
 func CodeHashKeyFor(address common.Address) []byte {
 	bz := make([]byte, 1+common.AddressLength)
 	copy(bz, []byte{types.CodeHashKeyPrefix})
@@ -74,7 +75,7 @@ func CodeHashKeyFor(address common.Address) []byte {
 	return bz
 }
 
-// CodeKeyFor defines the full key under which an addreses code is stored.
+// CodeKeyFor defines the full key under which an addresses code is stored.
 func CodeKeyFor(codeHash common.Hash) []byte {
 	bz := make([]byte, 1+common.HashLength)
 	copy(bz, []byte{types.CodeKeyPrefix})

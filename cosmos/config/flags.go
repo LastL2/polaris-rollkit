@@ -18,24 +18,17 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package rpc
+package config
 
 import (
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/spf13/cobra"
+
+	"github.com/berachain/polaris/cosmos/config/flags"
+	"github.com/berachain/polaris/eth/polar"
 )
 
-type (
-	API               = rpc.API
-	BlockNumber       = rpc.BlockNumber
-	BlockNumberOrHash = rpc.BlockNumberOrHash
-	Server            = rpc.Server
-)
-
-var (
-	NewServer            = rpc.NewServer
-	SafeBlockNumber      = rpc.SafeBlockNumber
-	FinalizedBlockNumber = rpc.FinalizedBlockNumber
-	LatestBlockNumber    = rpc.LatestBlockNumber
-	PendingBlockNumber   = rpc.PendingBlockNumber
-	EarliestBlockNumber  = rpc.EarliestBlockNumber
-)
+// AddPolarisFlags implements servertypes.ModuleInitFlags interface.
+func AddPolarisFlags(startCmd *cobra.Command) {
+	_ = polar.DefaultConfig()
+	startCmd.Flags().Bool(flags.OptimisticExecution, false, "Enable optimistic execution")
+}

@@ -28,7 +28,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"pkg.berachain.dev/polaris/eth/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type BankKeeper interface {
@@ -55,6 +55,6 @@ func MintCoinsToAddress(
 		return err
 	}
 
-	// Send the bank denomination to the receipient.
+	// Send the bank denomination to the recipient.
 	return bk.SendCoinsFromModuleToAccount(ctx, moduleAcc, recipient.Bytes(), coins)
 }

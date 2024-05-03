@@ -23,17 +23,18 @@ package journal
 import (
 	"math/big"
 
-	"pkg.berachain.dev/polaris/eth/common"
-	"pkg.berachain.dev/polaris/eth/crypto"
-	libtypes "pkg.berachain.dev/polaris/lib/types"
-	"pkg.berachain.dev/polaris/lib/utils"
+	libtypes "github.com/berachain/polaris/lib/types"
+	"github.com/berachain/polaris/lib/utils"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // emptyCodeHash is the Keccak256 Hash of empty code
 // 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470.
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
-// `selfDestructStatePlugin` defines the required funtions from the StatePlugin
+// `selfDestructStatePlugin` defines the required functions from the StatePlugin
 // for the suicide journal.
 type selfDestructStatePlugin interface {
 	// GetCodeHash returns the code hash of the given account.

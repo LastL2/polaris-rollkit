@@ -18,14 +18,15 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package journal
+package state
 
-import "github.com/ethereum/go-ethereum/core/state"
+// Mode is the type of state requested from the host chain.
+type Mode uint8
 
-type (
-	AccessList = state.AccessList
-)
-
-var (
-	NewAccessList = state.NewAccessList
+const (
+	Genesis Mode = iota
+	Miner
+	Insert
+	Finalize
+	Latest
 )

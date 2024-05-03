@@ -24,14 +24,15 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/berachain/polaris/eth/params"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
-
-	"pkg.berachain.dev/polaris/eth/common"
-	"pkg.berachain.dev/polaris/eth/log"
-	"pkg.berachain.dev/polaris/eth/params"
+	ethparams "github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -51,6 +52,7 @@ func DefaultConfig() *Config {
 	gpoConfig.Default = big.NewInt(gpoDefault)
 	minerCfg := miner.DefaultConfig
 	minerCfg.Etherbase = common.HexToAddress(developmentCoinbase)
+	minerCfg.GasPrice = big.NewInt(1)
 	legacyPool := legacypool.DefaultConfig
 	legacyPool.Journal = ""
 
@@ -78,7 +80,7 @@ func (c *Config) SafetyMessage() {
 // Config represents the configurable parameters for Polaris.
 type Config struct {
 	// The chain configuration to use.
-	Chain params.ChainConfig
+	Chain ethparams.ChainConfig
 
 	// Mining options
 	Miner miner.Config

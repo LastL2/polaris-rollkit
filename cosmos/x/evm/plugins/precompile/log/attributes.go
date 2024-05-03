@@ -23,22 +23,23 @@ package log
 import (
 	"strconv"
 
+	cosmlib "github.com/berachain/polaris/cosmos/lib"
+	"github.com/berachain/polaris/eth/accounts/abi"
+	"github.com/berachain/polaris/eth/core/precompile"
+
 	abci "github.com/cometbft/cometbft/abci/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	cosmlib "pkg.berachain.dev/polaris/cosmos/lib"
-	"pkg.berachain.dev/polaris/eth/accounts/abi"
-	"pkg.berachain.dev/polaris/eth/common"
-	"pkg.berachain.dev/polaris/eth/core/precompile"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
 	// intBase is the base `int`s are parsed in, 10.
 	intBase = 10
-	// int64Bits is the number of bits stored in a variabe of `int64` type.
+	// int64Bits is the number of bits stored in a variable of `int64` type.
 	int64Bits = 64
 	// notFound is a default return value for searches in which an item was not found.
 	notFound = -1

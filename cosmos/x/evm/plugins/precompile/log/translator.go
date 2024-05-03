@@ -21,12 +21,13 @@
 package log
 
 import (
+	"github.com/berachain/polaris/eth/accounts/abi"
+	"github.com/berachain/polaris/eth/core/precompile"
+	"github.com/berachain/polaris/lib/errors"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"pkg.berachain.dev/polaris/eth/accounts/abi"
-	"pkg.berachain.dev/polaris/eth/common"
-	"pkg.berachain.dev/polaris/eth/core/precompile"
-	"pkg.berachain.dev/polaris/lib/errors"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // makeTopics generates the Ethereum log `Topics` field for a valid cosmos event. `Topics` is a
@@ -42,7 +43,7 @@ func (f *Factory) makeTopics(pl *precompileLog, event *sdk.Event) ([]common.Hash
 
 	// for each Ethereum indexed argument, get the corresponding Cosmos event attribute and
 	// convert to a geth compatible type. NOTE: this iteration has total complexity O(M), where
-	// M = average length of atrribute key strings, as length of `indexedInputs` <= 3.
+	// M = average length of attribute key strings, as length of `indexedInputs` <= 3.
 	for i, arg := range pl.indexedInputs {
 		attrIdx := searchAttributesForArg(&event.Attributes, arg.Name)
 		if attrIdx == notFound {
@@ -79,7 +80,7 @@ func (f *Factory) makeData(pl *precompileLog, event *sdk.Event) ([]byte, error) 
 
 	// for each Ethereum non-indexed argument, get the corresponding Cosmos event attribute and
 	// convert to a geth compatible type. NOTE: the total complexity of this iteration: O(M*N^2),
-	// where N is the # of non-indexed args, M = average length of atrribute key strings.
+	// where N is the # of non-indexed args, M = average length of attribute key strings.
 	for i, arg := range pl.nonIndexedInputs {
 		attrIdx := searchAttributesForArg(&event.Attributes, arg.Name)
 		if attrIdx == notFound {

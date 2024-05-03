@@ -27,13 +27,13 @@ import (
 
 	"cosmossdk.io/log"
 
+	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
+	"github.com/ethereum/go-ethereum/core"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
-
-	"pkg.berachain.dev/polaris/eth/core"
-	coretypes "pkg.berachain.dev/polaris/eth/core/types"
 )
 
 // txChanSize is the size of channel listening to NewTxsEvent. The number is referenced from the
@@ -56,8 +56,8 @@ type TxSubProvider interface {
 
 // TxSerializer provides an interface to Serialize Geth Transactions to Bytes (via sdk.Tx).
 type TxSerializer interface {
-	ToSdkTx(signedTx *coretypes.Transaction, gasLimit uint64) (sdk.Tx, error)
-	ToSdkTxBytes(signedTx *coretypes.Transaction, gasLimit uint64) ([]byte, error)
+	ToSdkTx(signedTx *ethtypes.Transaction, gasLimit uint64) (sdk.Tx, error)
+	ToSdkTxBytes(signedTx *ethtypes.Transaction, gasLimit uint64) ([]byte, error)
 }
 
 // TxBroadcaster provides an interface to broadcast TxBytes to the comet p2p layer.
@@ -72,7 +72,7 @@ type Subscription interface {
 
 // failedTx represents a transaction that failed to broadcast.
 type failedTx struct {
-	tx      *coretypes.Transaction
+	tx      *ethtypes.Transaction
 	retries int
 }
 
@@ -83,6 +83,7 @@ type handler struct {
 	logger     log.Logger
 	clientCtx  TxBroadcaster
 	serializer TxSerializer
+	crc        CometRemoteCache
 
 	// Ethereum
 	txPool  TxSubProvider
@@ -97,12 +98,14 @@ type handler struct {
 
 // newHandler creates a new handler.
 func newHandler(
-	clientCtx TxBroadcaster, txPool TxSubProvider, serializer TxSerializer, logger log.Logger,
+	clientCtx TxBroadcaster, txPool TxSubProvider, serializer TxSerializer,
+	crc CometRemoteCache, logger log.Logger,
 ) *handler {
 	h := &handler{
 		logger:     logger,
 		clientCtx:  clientCtx,
 		serializer: serializer,
+		crc:        crc,
 		txPool:     txPool,
 		txsCh:      make(chan core.NewTxsEvent, txChanSize),
 		stopCh:     make(chan struct{}),
@@ -133,7 +136,7 @@ func (h *handler) Stop() error {
 	return nil
 }
 
-// start handles the subscription to the txpool and broadcasts transactions.
+// mainLoop start handles the subscription to the txpool and broadcasts transactions.
 func (h *handler) mainLoop() {
 	// Connect to the subscription.
 	h.txsSub = h.txPool.SubscribeTransactions(h.txsCh, true)
@@ -198,15 +201,21 @@ func (h *handler) stop(err error) {
 }
 
 // broadcastTransactions will propagate a batch of transactions to the CometBFT mempool.
-func (h *handler) broadcastTransactions(txs coretypes.Transactions) {
-	h.logger.Debug("broadcasting transactions", "num_txs", len(txs))
+func (h *handler) broadcastTransactions(txs ethtypes.Transactions) {
+	numBroadcasted := 0
 	for _, signedEthTx := range txs {
-		h.broadcastTransaction(signedEthTx, maxRetries)
+		if !h.crc.IsRemoteTx(signedEthTx.Hash()) {
+			h.broadcastTransaction(signedEthTx, maxRetries)
+			numBroadcasted++
+		}
 	}
+	h.logger.Debug(
+		"broadcasting transactions", "num_received", len(txs), "num_broadcasted", numBroadcasted,
+	)
 }
 
 // broadcastTransaction will propagate a transaction to the CometBFT mempool.
-func (h *handler) broadcastTransaction(tx *coretypes.Transaction, retries int) {
+func (h *handler) broadcastTransaction(tx *ethtypes.Transaction, retries int) {
 	txBytes, err := h.serializer.ToSdkTxBytes(tx, tx.Gas())
 	if err != nil {
 		h.logger.Error("failed to serialize transaction", "err", err)
@@ -216,26 +225,29 @@ func (h *handler) broadcastTransaction(tx *coretypes.Transaction, retries int) {
 	// Send the transaction to the CometBFT mempool, which will gossip it to peers via
 	// CometBFT's p2p layer.
 	rsp, err := h.clientCtx.BroadcastTxSync(txBytes)
-
 	if err != nil {
 		h.logger.Error("error on transactions broadcast", "err", err)
 		h.failedTxs <- &failedTx{tx: tx, retries: retries}
 		return
 	}
 
-	if rsp == nil || rsp.Code == 0 {
+	// If rsp == 1, likely the txn is already in a block, and thus the broadcast failing is actually
+	// the desired behaviour.
+	if rsp == nil || rsp.Code == 0 || rsp.Code == 1 {
 		return
 	}
 
 	switch rsp.Code {
 	case sdkerrors.ErrMempoolIsFull.ABCICode():
 		h.logger.Error("failed to broadcast: comet-bft mempool is full", "tx_hash", tx.Hash())
+		telemetry.IncrCounter(float32(1), MetricKeyMempoolFull)
 	case
 		sdkerrors.ErrTxInMempoolCache.ABCICode():
 		return
 	default:
 		h.logger.Error("failed to broadcast transaction",
 			"codespace", rsp.Codespace, "code", rsp.Code, "info", rsp.Info, "tx_hash", tx.Hash())
+		telemetry.IncrCounter(float32(1), MetricKeyBroadcastFailure)
 	}
 
 	h.failedTxs <- &failedTx{tx: tx, retries: retries}

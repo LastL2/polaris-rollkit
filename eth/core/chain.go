@@ -26,18 +26,18 @@ import (
 	"math/big"
 	"sync/atomic"
 
-	lru "github.com/ethereum/go-ethereum/common/lru"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/berachain/polaris/eth/consensus"
+	"github.com/berachain/polaris/eth/core/types"
 
-	"pkg.berachain.dev/polaris/eth/common"
-	"pkg.berachain.dev/polaris/eth/consensus"
-	"pkg.berachain.dev/polaris/eth/core/state"
-	"pkg.berachain.dev/polaris/eth/core/types"
-	"pkg.berachain.dev/polaris/eth/core/vm"
-	"pkg.berachain.dev/polaris/eth/log"
-	"pkg.berachain.dev/polaris/eth/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/lru"
+	"github.com/ethereum/go-ethereum/core"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // By default we are storing up to 1024 items in each cache.
@@ -48,28 +48,28 @@ var _ Blockchain = (*blockchain)(nil)
 
 // Blockchain interface defines the methods that a blockchain must have.
 type Blockchain interface {
-	PreparePlugins(ctx context.Context)
 	ChainReader
 	ChainWriter
 	ChainSubscriber
 	ChainResources
-	ChainContext
+	core.ChainContext
+
+	PrimePlugins(ctx context.Context)
+	StatePluginFactory() StatePluginFactory
 }
 
 // blockchain is the canonical, persistent object that operates the Polaris EVM.
 type blockchain struct {
 	// the host chain plugins that the Polaris EVM is running on.
-	bp BlockPlugin
-	hp HistoricalPlugin
-	pp PrecompilePlugin
-	sp StatePlugin
+	bp  BlockPlugin
+	hp  HistoricalPlugin
+	pp  PrecompilePlugin
+	spf StatePluginFactory
 
 	engine    consensus.Engine
 	processor core.Processor
 	validator core.Validator
 
-	// statedb is the state database that is used to mange state during transactions.
-	statedb state.StateDB
 	// vmConfig is the configuration used to create the EVM.
 	vmConfig *vm.Config
 
@@ -77,19 +77,19 @@ type blockchain struct {
 	config *params.ChainConfig
 
 	// currentBlock is the current/pending block.
-	currentBlock atomic.Pointer[types.Block]
+	currentBlock atomic.Pointer[ethtypes.Block]
 	// finalizedBlock is the finalized/latest block.
-	finalizedBlock atomic.Pointer[types.Block]
+	finalizedBlock atomic.Pointer[ethtypes.Block]
 
 	// receiptsCache is a cache of the receipts for the last `defaultCacheSizeBytes` bytes of
 	// blocks. blockHash -> receipts
-	receiptsCache *lru.Cache[common.Hash, types.Receipts]
+	receiptsCache *lru.Cache[common.Hash, ethtypes.Receipts]
 	// blockNumCache is a cache of the blocks for the last `defaultCacheSizeBytes` bytes of blocks.
 	// blockNum -> block
-	blockNumCache *lru.Cache[uint64, *types.Block]
+	blockNumCache *lru.Cache[uint64, *ethtypes.Block]
 	// blockHashCache is a cache of the blocks for the last `defaultCacheSizeBytes` bytes of blocks.
 	// blockHash -> block
-	blockHashCache *lru.Cache[common.Hash, *types.Block]
+	blockHashCache *lru.Cache[common.Hash, *ethtypes.Block]
 	// txLookupCache is a cache of the transactions for the last `defaultCacheSizeBytes` bytes of
 	// blocks. txHash -> txLookupEntry
 	txLookupCache *lru.Cache[common.Hash, *types.TxLookupEntry]
@@ -116,53 +116,40 @@ func NewChain(
 		bp:             host.GetBlockPlugin(),
 		hp:             host.GetHistoricalPlugin(),
 		pp:             host.GetPrecompilePlugin(),
-		sp:             host.GetStatePlugin(),
+		spf:            host.GetStatePluginFactory(),
 		config:         config,
 		vmConfig:       &vm.Config{},
-		receiptsCache:  lru.NewCache[common.Hash, types.Receipts](defaultCacheSize),
-		blockNumCache:  lru.NewCache[uint64, *types.Block](defaultCacheSize),
-		blockHashCache: lru.NewCache[common.Hash, *types.Block](defaultCacheSize),
+		receiptsCache:  lru.NewCache[common.Hash, ethtypes.Receipts](defaultCacheSize),
+		blockNumCache:  lru.NewCache[uint64, *ethtypes.Block](defaultCacheSize),
+		blockHashCache: lru.NewCache[common.Hash, *ethtypes.Block](defaultCacheSize),
 		txLookupCache:  lru.NewCache[common.Hash, *types.TxLookupEntry](defaultCacheSize),
 		chainHeadFeed:  event.Feed{},
 		scope:          event.SubscriptionScope{},
 		logger:         log.Root(),
 		engine:         engine,
 	}
-	bc.statedb = state.NewStateDB(bc.sp, bc.pp)
 	bc.processor = core.NewStateProcessor(bc.config, bc, bc.engine)
 	bc.validator = core.NewBlockValidator(bc.config, bc, bc.engine)
-	// TODO: hmm...
+	// TODO: bug fix required.
 	bc.currentBlock.Store(
-		types.NewBlock(&types.Header{Time: 0, Number: big.NewInt(0),
+		ethtypes.NewBlock(&ethtypes.Header{Time: 0, Number: big.NewInt(0),
 			BaseFee: big.NewInt(0)}, nil, nil, nil, trie.NewStackTrie(nil)))
 	bc.finalizedBlock.Store(nil)
 	return bc
 }
 
-func (bc *blockchain) LoadLastState(ctx context.Context, number uint64) error {
-	// ctx here is the one created from app.CommitMultistore().
-	bc.PreparePlugins(ctx)
-	bc.sp.Prepare(ctx)
-
-	return bc.loadLastState(number)
-}
-
-func (bc *blockchain) PreparePlugins(ctx context.Context) {
-	bc.sp.Reset(ctx)
-	bc.bp.Prepare(ctx)
+func (bc *blockchain) PrimePlugins(ctx context.Context) {
+	if bc.bp != nil {
+		bc.bp.Prepare(ctx)
+	}
 	if bc.hp != nil {
 		bc.hp.Prepare(ctx)
 	}
 }
 
-// ChainConfig returns the Ethereum chain config of the  chain.
-func (bc *blockchain) Config() *params.ChainConfig {
-	return bc.config
-}
-
-// loadLastState loads the last known chain state from the database. This method
+// LoadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
-func (bc *blockchain) loadLastState(number uint64) error {
+func (bc *blockchain) LoadLastState(number uint64) error {
 	bc.logger.Info("loading last state")
 	b := bc.GetBlockByNumber(number)
 	if number == 0 {
@@ -173,4 +160,8 @@ func (bc *blockchain) loadLastState(number uint64) error {
 	}
 	bc.currentBlock.Store(b)
 	return nil
+}
+
+func (bc *blockchain) StatePluginFactory() StatePluginFactory {
+	return bc.spf
 }

@@ -18,21 +18,20 @@
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 // TITLE.
 
-package polarapi
+package abci
 
 import (
-	"github.com/ethereum/go-ethereum/ethapi"
+	"time"
+
+	cometabci "github.com/cometbft/cometbft/abci/types"
 )
 
-type (
-	EthBackend = ethapi.Backend
-)
-
-var (
-	GethAPIs          = ethapi.GetAPIs
-	NewEthereumAPI    = ethapi.NewEthereumAPI
-	NewBlockChainAPI  = ethapi.NewBlockChainAPI
-	NewTransactionAPI = ethapi.NewTransactionAPI
-	NewTxPoolAPI      = ethapi.NewTxPoolAPI
-	NewDebugAPI       = ethapi.NewDebugAPI
-)
+type abciRequest interface {
+	// add your methods here
+	GetTxs() [][]byte
+	GetTime() time.Time
+	GetMisbehavior() []cometabci.Misbehavior
+	GetHeight() int64
+	GetNextValidatorsHash() []byte
+	GetProposerAddress() []byte
+}

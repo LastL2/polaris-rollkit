@@ -30,16 +30,25 @@ import (
 	"fmt"
 	"reflect"
 
-	"pkg.berachain.dev/polaris/eth/accounts/abi"
+	"github.com/berachain/polaris/eth/accounts/abi"
 )
 
 // validateArg uses reflection to verify the implementation arg matches the ABI arg.
+//
+//nolint:gocognit // required for reflect.
 func validateArg(implMethodVar reflect.Value, abiMethodVar reflect.Value) error {
 	implMethodVarType := implMethodVar.Type()
 	abiMethodVarType := abiMethodVar.Type()
 
 	switch implMethodVarType.Kind() { //nolint:exhaustive // todo verify its okay.
 	case reflect.Array, reflect.Slice:
+		// abiMethodVarType is not also a slice or array
+		if abiMethodVarType.Kind() != reflect.Array && abiMethodVarType.Kind() != reflect.Slice {
+			return fmt.Errorf(
+				"type mismatch: %v != %v", implMethodVarType, abiMethodVarType,
+			)
+		}
+
 		if implMethodVarType.Elem() != abiMethodVarType.Elem() {
 			// If the array is not a slice/array of structs, return an error.
 			if implMethodVarType.Elem().Kind() != reflect.Struct {

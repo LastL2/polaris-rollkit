@@ -21,36 +21,26 @@
 package keeper
 
 import (
-	"context"
-
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 
+	"github.com/berachain/polaris/cosmos/config"
+	"github.com/berachain/polaris/cosmos/runtime/txpool"
+	"github.com/berachain/polaris/cosmos/x/evm/plugins/state"
+	"github.com/berachain/polaris/cosmos/x/evm/types"
+	"github.com/berachain/polaris/eth/core"
+	ethprecompile "github.com/berachain/polaris/eth/core/precompile"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	"pkg.berachain.dev/polaris/cosmos/config"
-	"pkg.berachain.dev/polaris/cosmos/x/evm/plugins/state"
-	"pkg.berachain.dev/polaris/cosmos/x/evm/types"
-	"pkg.berachain.dev/polaris/eth/core"
-	ethprecompile "pkg.berachain.dev/polaris/eth/core/precompile"
-	coretypes "pkg.berachain.dev/polaris/eth/core/types"
-	"pkg.berachain.dev/polaris/eth/params"
 )
-
-type WrappedBlockchain interface {
-	PreparePlugins(context.Context)
-	Config() *params.ChainConfig
-	WriteGenesisState(context.Context, *core.Genesis) error
-	InsertBlockAndSetHead(context.Context, *coretypes.Block) error
-	GetBlockByNumber(uint64) *coretypes.Block
-}
 
 type Keeper struct {
 	// host represents the host chain
 	*Host
 
 	// provider is the struct that houses the Polaris EVM.
-	wrappedChain WrappedBlockchain
+	chain  core.Blockchain
+	txpool *txpool.Mempool
 }
 
 // NewKeeper creates new instances of the polaris Keeper.
@@ -73,9 +63,14 @@ func NewKeeper(
 	}
 }
 
-func (k *Keeper) Setup(wrappedChain WrappedBlockchain) error {
-	k.wrappedChain = wrappedChain
+func (k *Keeper) Setup(chain core.Blockchain, txPool *txpool.Mempool) error {
+	k.chain = chain
+	k.txpool = txPool
 	return k.SetupPrecompiles()
+}
+
+func (k *Keeper) GetHost() core.PolarisHostChain {
+	return k.Host
 }
 
 // Logger returns a module-specific logger.
