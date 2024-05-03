@@ -22,16 +22,17 @@ package chain
 
 import (
 	"github.com/berachain/polaris/eth/core"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
-type PostBlockHookFn func(types.Transactions, types.Receipts, types.Signer)
+type PostBlockHookFn func(ethtypes.Transactions, ethtypes.Receipts, ethtypes.Signer)
 
 // WrappedBlockchain is a struct that wraps the core blockchain with additional
 // application context.
 type WrappedBlockchain struct {
 	core.Blockchain           // chain is the core blockchain.
 	app             txDecoder // App is the application context.
-    hook            PostBlockHookFn
+	hook            PostBlockHookFn
 }
 
 // New creates a new instance of WrappedBlockchain with the provided core blockchain

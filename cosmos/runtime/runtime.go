@@ -23,7 +23,6 @@ package runtime
 import (
 	"math/big"
 	"sync"
-	"time"
 
 	cosmoslog "cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
@@ -138,7 +137,8 @@ func New(
 // It takes a BaseApp and an EVMKeeper as arguments.
 // It returns an error if the setup fails.
 func (p *Polaris) Build(
-	app CosmosApp, cosmHandler sdk.AnteHandler, ek EVMKeeper, allowedValMsgs map[string]sdk.Msg, hook chain.PostBlockHookFn,
+	app CosmosApp, cosmHandler sdk.AnteHandler, ek EVMKeeper, allowedValMsgs map[string]sdk.Msg,
+	hook chain.PostBlockHookFn,
 ) error {
 	// Wrap the geth miner and txpool with the cosmos miner and txpool.
 	p.WrappedMiner = miner.New(

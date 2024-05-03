@@ -218,7 +218,7 @@ func NewPolarisApp(
 
 	// Setup Polaris Runtime.
 	if err = app.Polaris.Build(
-		app, cosmHandler, app.EVMKeeper, miner.DefaultAllowedMsgs,
+		app, cosmHandler, app.EVMKeeper, miner.DefaultAllowedMsgs, nil,
 	); err != nil {
 		panic(err)
 	}

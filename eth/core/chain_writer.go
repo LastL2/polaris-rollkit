@@ -36,11 +36,13 @@ type ChainWriter interface {
 	LoadLastState(uint64) error
 	WriteGenesisBlock(block *ethtypes.Block) error
 	InsertBlock(block *ethtypes.Block) error
-	InsertBlockAndSetHead(block *ethtypes.Block) ([]*types.Receipt, error)
+	InsertBlockAndSetHead(block *ethtypes.Block) ([]*ethtypes.Receipt, error)
 	SetFinalizedBlock() error
 
-	WriteBlockAndSetHead(block *ethtypes.Block, receipts []*ethtypes.Receipt, logs []*ethtypes.Log,
-		state state.StateDB, emitHeadEvent bool) (status core.WriteStatus, err error)
+	WriteBlockAndSetHead(
+		block *ethtypes.Block, receipts []*ethtypes.Receipt, logs []*ethtypes.Log,
+		state state.StateDB, emitHeadEvent bool,
+	) (status core.WriteStatus, err error)
 }
 
 // WriteGenesisBlock inserts the genesis block into the blockchain.
@@ -58,7 +60,7 @@ func (bc *blockchain) WriteGenesisBlock(block *ethtypes.Block) error {
 }
 
 // InsertBlockAndSetHead inserts a block into the blockchain without setting it as the head.
-func (bc *blockchain) InsertBlockAndSetHead(block *ethtypes.Block) ([]*ethtypes.Receipt error) {
+func (bc *blockchain) InsertBlockAndSetHead(block *ethtypes.Block) ([]*ethtypes.Receipt, error) {
 	// Get the state with the latest insert chain context.
 	sp := bc.spf.NewPluginWithMode(state.Insert)
 	state := state.NewStateDB(sp, bc.pp)

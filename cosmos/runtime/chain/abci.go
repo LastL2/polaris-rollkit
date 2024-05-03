@@ -21,8 +21,6 @@
 package chain
 
 import (
-	"fmt"
-
 	evmtypes "github.com/berachain/polaris/cosmos/x/evm/types"
 
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -76,7 +74,7 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	}
 
 	// Insert the block into the chain.
-    receipts, err := wbc.InsertBlockAndSetHead(block)
+	receipts, err := wbc.InsertBlockAndSetHead(block)
 	if err != nil {
 		ctx.Logger().Error("failed to insert block", "err", err)
 		return &abci.ResponseProcessProposal{
@@ -86,7 +84,7 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 
 	if wbc.hook != nil {
 		header := block.Header()
-		signer := types.MakeSigner(wbc.Blockchain.Config(), header.Number, header.Time)
+		signer := ethtypes.MakeSigner(wbc.Blockchain.Config(), header.Number, header.Time)
 		wbc.hook(block.Transactions(), receipts, signer)
 	}
 
