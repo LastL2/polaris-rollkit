@@ -128,7 +128,12 @@ func (pp *ProposalProvider) ProcessProposal(
 
 	// Technically a race condition here, between here and emitting the chain head
 	// event but it is so small and the network latency will most definitely overshadow.
-	defer spf.SetLatestQueryContext(ctx)
+	defer func() {
+		// TODO: This is a hack to fix race condition because the network latency is significantly smaller in rollup configuration.
+		pp.logger.Debug("Sleeping for 100ms here to fix race condition")
+		time.Sleep(time.Millisecond * 100)
+		spf.SetLatestQueryContext(ctx)
+	}()
 
 	// Set the insert chain context for processing the block. NOTE: We insert to the chain but do
 	// NOT set the chain head using this context.
