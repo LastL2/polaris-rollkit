@@ -94,6 +94,13 @@ func (pp *ProposalProvider) PrepareProposal(
 		return nil, err
 	}
 
+	// TODO: This is a hack to fix race condition because the network latency is significantly smaller in rollup configuration.
+	if !sleepOnce {
+		sleepOnce = true
+		pp.logger.Debug("Sleeping for 1s here to fix race condition")
+		time.Sleep(1 * time.Second)
+	}
+
 	return pp.wrappedMiner.PrepareProposal(ctx, req)
 }
 
@@ -130,15 +137,7 @@ func (pp *ProposalProvider) ProcessProposal(
 
 	// Technically a race condition here, between here and emitting the chain head
 	// event but it is so small and the network latency will most definitely overshadow.
-	defer func() {
-		// TODO: This is a hack to fix race condition because the network latency is significantly smaller in rollup configuration.
-		if !sleepOnce {
-			sleepOnce = true
-			pp.logger.Debug("Sleeping for 1s here to fix race condition")
-			time.Sleep(1 * time.Second)
-		}
-		spf.SetLatestQueryContext(ctx)
-	}()
+	defer spf.SetLatestQueryContext(ctx)
 
 	// Set the insert chain context for processing the block. NOTE: We insert to the chain but do
 	// NOT set the chain head using this context.
