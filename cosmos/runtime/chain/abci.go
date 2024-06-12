@@ -78,7 +78,8 @@ func (wbc *WrappedBlockchain) ProcessProposal(
 	}
 
 	// Insert the block into the chain.
-	if err = wbc.InsertBlock(block); err != nil {
+	receipts, err := wbc.InsertBlock(block)
+	if err != nil {
 		ctx.Logger().Error("failed to insert block", "err", err)
 		return &abci.ResponseProcessProposal{
 			Status: abci.ResponseProcessProposal_REJECT,
