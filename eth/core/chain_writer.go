@@ -1,22 +1,25 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023, Berachain Foundation. All rights reserved.
-// Use of this software is govered by the Business Source License included
-// in the LICENSE file of this repository and at www.mariadb.com/bsl11.
+// Copyright (c) 2024 Berachain Foundation
 //
-// ANY USE OF THE LICENSED WORK IN VIOLATION OF THIS LICENSE WILL AUTOMATICALLY
-// TERMINATE YOUR RIGHTS UNDER THIS LICENSE FOR THE CURRENT AND ALL OTHER
-// VERSIONS OF THE LICENSED WORK.
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
 //
-// THIS LICENSE DOES NOT GRANT YOU ANY RIGHT IN ANY TRADEMARK OR LOGO OF
-// LICENSOR OR ITS AFFILIATES (PROVIDED THAT YOU MAY USE A TRADEMARK OR LOGO OF
-// LICENSOR AS EXPRESSLY REQUIRED BY THIS LICENSE).
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
 //
-// TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
-// AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
-// EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
-// TITLE.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 package core
 
@@ -38,42 +41,26 @@ type ChainWriter interface {
 	InsertBlock(block *ethtypes.Block) error
 	InsertBlockAndSetHead(block *ethtypes.Block) ([]*ethtypes.Receipt, error)
 	SetFinalizedBlock() error
-
-	WriteBlockAndSetHead(
-		block *ethtypes.Block, receipts []*ethtypes.Receipt, logs []*ethtypes.Log,
-		state state.StateDB, emitHeadEvent bool,
-	) (status core.WriteStatus, err error)
+	WriteBlockAndSetHead(block *ethtypes.Block, receipts []*ethtypes.Receipt, logs []*ethtypes.Log,
+		state state.StateDB, emitHeadEvent bool) (status core.WriteStatus, err error)
 }
 
-// WriteGenesisBlock inserts the genesis block into the blockchain.
-func (bc *blockchain) WriteGenesisBlock(block *ethtypes.Block) error {
-	// Get the state with the latest finalize block context.
-	sp := bc.spf.NewPluginWithMode(state.Genesis)
-	state := state.NewStateDB(sp, bc.pp)
-
-	// TODO: add more validation here.
-	if block.NumberU64() != 0 {
-		return errors.New("not the genesis block")
-	}
-	_, err := bc.WriteBlockAndSetHead(block, nil, nil, state, true)
-	return err
-}
-
-// InsertBlockAndSetHead inserts a block into the blockchain without setting it as the head.
-func (bc *blockchain) InsertBlockAndSetHead(block *ethtypes.Block) ([]*ethtypes.Receipt, error) {
+// InsertBlock inserts a block into the blockchain without setting it as the head.
+func (bc *blockchain) InsertBlock(block *ethtypes.Block) error {
 	// Get the state with the latest insert chain context.
 	sp := bc.spf.NewPluginWithMode(state.Insert)
 	state := state.NewStateDB(sp, bc.pp)
 
-	// Call the private method to insert the block without setting it as the head.
-	receipts, _, err := bc.insertBlockAndSetHead(block, state, true)
+	// Call the private method to insert the block and setting it as the head.
+	_, _, err := bc.insertBlock(block, state)
 	// Return any error that might have occurred.
 	return receipts, err
 }
 
-// InsertBlockAndSetHead inserts a block into the blockchain without setting it as the head.
-func (bc *blockchain) insertBlockAndSetHead(
-	block *ethtypes.Block, state state.StateDB, emitChainHead bool,
+// insertBlock inserts a block into the blockchain by running the state processor and
+// validating whether its okay.
+func (bc *blockchain) insertBlock(
+	block *ethtypes.Block, state state.StateDB,
 ) ([]*ethtypes.Receipt, []*ethtypes.Log, error) {
 	// Validate that we are about to insert a valid block.
 	// If the block number is greater than 1,
@@ -98,30 +85,16 @@ func (bc *blockchain) insertBlockAndSetHead(
 		return nil, nil, err
 	}
 
-	// In theory, we should fire a ChainHeadEvent when we inject
-	// a canonical block, but sometimes we can insert a batch of
-	// canonical blocks. Avoid firing too many ChainHeadEvents,
-	// we will fire an accumulated ChainHeadEvent and disable fire
-	// event here.
-	if emitChainHead {
-		// Fire off the feeds.
-		bc.chainFeed.Send(core.ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
-		if len(logs) > 0 {
-			bc.logsFeed.Send(logs)
-		}
-		bc.chainHeadFeed.Send(core.ChainHeadEvent{Block: block})
-	}
-
 	return receipts, logs, nil
 }
 
-// InsertBlock inserts a block into the blockchain and sets the head.
-func (bc *blockchain) InsertBlock(block *ethtypes.Block) error {
+// InsertBlockAndSetHead inserts a block into the blockchain and sets the head.
+func (bc *blockchain) InsertBlockAndSetHead(block *ethtypes.Block) error {
 	// Get the state with the latest finalize block context.
 	sp := bc.spf.NewPluginWithMode(state.Finalize)
 	state := state.NewStateDB(sp, bc.pp)
 
-	receipts, logs, err := bc.insertBlockAndSetHead(block, state, false)
+	receipts, logs, err := bc.insertBlock(block, state)
 	if err != nil {
 		return err
 	}
@@ -136,8 +109,8 @@ func (bc *blockchain) InsertBlock(block *ethtypes.Block) error {
 
 // WriteBlockAndSetHead sets the head of the blockchain to the given block and finalizes the block.
 func (bc *blockchain) WriteBlockAndSetHead(
-	block *ethtypes.Block, receipts []*ethtypes.Receipt /*logs*/, _ []*ethtypes.Log,
-	state state.StateDB, _ /*emitHeadEvent*/ bool,
+	block *ethtypes.Block, receipts []*ethtypes.Receipt, logs []*ethtypes.Log,
+	state state.StateDB, emitHeadEvent bool,
 ) (core.WriteStatus, error) {
 	// Write the block to the store.
 	if err := bc.writeBlockWithState(block, receipts, state); err != nil {
@@ -176,6 +149,20 @@ func (bc *blockchain) WriteBlockAndSetHead(
 	// TODO deprecate this cache?
 	if receipts != nil {
 		bc.receiptsCache.Add(block.Hash(), receipts)
+	}
+
+	// In theory, we should fire a ChainHeadEvent when we inject
+	// a canonical block, but sometimes we can insert a batch of
+	// canonical blocks. Avoid firing too many ChainHeadEvents,
+	// we will fire an accumulated ChainHeadEvent and disable fire
+	// event here.
+	if emitHeadEvent {
+		// Fire off the feeds.
+		bc.chainFeed.Send(core.ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
+		if len(logs) > 0 {
+			bc.logsFeed.Send(logs)
+		}
+		bc.chainHeadFeed.Send(core.ChainHeadEvent{Block: block})
 	}
 
 	return core.CanonStatTy, nil

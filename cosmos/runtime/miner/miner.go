@@ -1,22 +1,25 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023, Berachain Foundation. All rights reserved.
-// Use of this software is govered by the Business Source License included
-// in the LICENSE file of this repository and at www.mariadb.com/bsl11.
+// Copyright (c) 2024 Berachain Foundation
 //
-// ANY USE OF THE LICENSED WORK IN VIOLATION OF THIS LICENSE WILL AUTOMATICALLY
-// TERMINATE YOUR RIGHTS UNDER THIS LICENSE FOR THE CURRENT AND ALL OTHER
-// VERSIONS OF THE LICENSED WORK.
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
 //
-// THIS LICENSE DOES NOT GRANT YOU ANY RIGHT IN ANY TRADEMARK OR LOGO OF
-// LICENSOR OR ITS AFFILIATES (PROVIDED THAT YOU MAY USE A TRADEMARK OR LOGO OF
-// LICENSOR AS EXPRESSLY REQUIRED BY THIS LICENSE).
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
 //
-// TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
-// AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
-// EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
-// TITLE.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Package miner implements the Ethereum miner.
 package miner
@@ -99,18 +102,28 @@ func (m *Miner) buildBlock(ctx sdk.Context) ([]byte, uint64, error) {
 // submitPayloadForBuilding submits a payload for building.
 func (m *Miner) submitPayloadForBuilding(ctx context.Context) error {
 	var (
-		err         error
-		payload     *miner.Payload
-		sCtx        = sdk.UnwrapSDKContext(ctx)
-		payloadArgs = m.constructPayloadArgs(uint64(sCtx.BlockTime().Unix()))
+		err     error
+		payload *miner.Payload
+		sCtx    = sdk.UnwrapSDKContext(ctx)
 	)
 
 	// Set the mining context for geth to build the payload with.
 	m.bc.StatePluginFactory().SetLatestMiningContext(ctx)
 	m.bc.PrimePlugins(ctx)
 
+	// Ensure that we make progress sine the last block. This is necessary
+	// since CometBFT timestamps are based on the median of all timestamps
+	// included in the last commit, and thus it is theoretically possible due
+	// to clock skew / rounding to commit two blocks in succession with the same
+	// unix time. This will prevent the block from being built.
+	prevBlockTs := uint64(0)
+	if finalBlock := m.bc.CurrentFinalBlock(); finalBlock != nil {
+		prevBlockTs = finalBlock.Time
+	}
+	ts := max(uint64(sCtx.BlockTime().Unix()), prevBlockTs+1)
+
 	// Build Payload.
-	if payload, err = m.miner.BuildPayload(payloadArgs); err != nil {
+	if payload, err = m.miner.BuildPayload(m.constructPayloadArgs(ts)); err != nil {
 		sCtx.Logger().Error("failed to build payload", "err", err)
 		return err
 	}

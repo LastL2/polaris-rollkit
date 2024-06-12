@@ -1,6 +1,6 @@
 module github.com/berachain/polaris/contracts
 
-go 1.21
+go 1.21.6
 
 require github.com/ethereum/go-ethereum v1.13.10
 
@@ -9,7 +9,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/bits-and-blooms/bitset v1.11.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/pebble v0.0.0-20231101195458-481da04154d6 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect

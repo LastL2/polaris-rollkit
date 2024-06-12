@@ -1,22 +1,25 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023, Berachain Foundation. All rights reserved.
-// Use of this software is govered by the Business Source License included
-// in the LICENSE file of this repository and at www.mariadb.com/bsl11.
+// Copyright (c) 2024 Berachain Foundation
 //
-// ANY USE OF THE LICENSED WORK IN VIOLATION OF THIS LICENSE WILL AUTOMATICALLY
-// TERMINATE YOUR RIGHTS UNDER THIS LICENSE FOR THE CURRENT AND ALL OTHER
-// VERSIONS OF THE LICENSED WORK.
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
 //
-// THIS LICENSE DOES NOT GRANT YOU ANY RIGHT IN ANY TRADEMARK OR LOGO OF
-// LICENSOR OR ITS AFFILIATES (PROVIDED THAT YOU MAY USE A TRADEMARK OR LOGO OF
-// LICENSOR AS EXPRESSLY REQUIRED BY THIS LICENSE).
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
 //
-// TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
-// AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
-// EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
-// TITLE.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 package txpool
 
@@ -33,6 +36,7 @@ import (
 	"github.com/berachain/polaris/eth/core"
 	"github.com/berachain/polaris/lib/utils"
 
+	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/mempool"
 
@@ -126,17 +130,20 @@ func (m *Mempool) Insert(ctx context.Context, sdkTx sdk.Tx) error {
 	m.blockBuilderMu.RLock()
 	errs := m.TxPool.Add([]*ethtypes.Transaction{ethTx}, false, false)
 	m.blockBuilderMu.RUnlock()
-	if len(errs) > 0 {
-		// Handle case where a node broadcasts to itself, we don't want it to fail CheckTx.
-		if errors.Is(errs[0], ethtxpool.ErrAlreadyKnown) &&
-			(sCtx.ExecMode() == sdk.ExecModeCheck || sCtx.ExecMode() == sdk.ExecModeReCheck) {
-			return nil
-		}
+
+	// Handle case where a node broadcasts to itself, we don't want it to fail CheckTx.
+	// Note: it's safe to check errs[0] because geth returns `errs` of length 1.
+	if errors.Is(errs[0], ethtxpool.ErrAlreadyKnown) &&
+		(sCtx.ExecMode() == sdk.ExecModeCheck || sCtx.ExecMode() == sdk.ExecModeReCheck) {
+		telemetry.IncrCounter(float32(1), MetricKeyMempoolKnownTxs)
+		sCtx.Logger().Info("mempool insert: tx already in mempool", "mode", sCtx.ExecMode())
+		return nil
+	} else if errs[0] != nil {
 		return errs[0]
 	}
 
 	// Add the eth tx to the remote cache.
-	m.crc.MarkRemoteSeen(ethTx.Hash())
+	_ = m.crc.MarkRemoteSeen(ethTx.Hash())
 
 	return nil
 }
@@ -153,26 +160,6 @@ func (m *Mempool) Select(context.Context, [][]byte) mempool.Iterator {
 }
 
 // Remove is an intentional no-op as the eth txpool handles removals.
-func (m *Mempool) Remove(tx sdk.Tx) error {
-	// Get the Eth payload envelope from the Cosmos transaction.
-	msgs := tx.GetMsgs()
-	if len(msgs) == 1 {
-		env, ok := utils.GetAs[*types.WrappedPayloadEnvelope](msgs[0])
-		if !ok {
-			return nil
-		}
-
-		// Unwrap the payload to unpack the individual eth transactions to remove from the txpool.
-		for _, txBz := range env.UnwrapPayload().ExecutionPayload.Transactions {
-			ethTx := new(ethtypes.Transaction)
-			if err := ethTx.UnmarshalBinary(txBz); err != nil {
-				continue
-			}
-			txHash := ethTx.Hash()
-
-			// Remove the eth tx from comet seen tx cache.
-			m.crc.DropRemoteTx(txHash)
-		}
-	}
+func (m *Mempool) Remove(_ sdk.Tx) error {
 	return nil
 }

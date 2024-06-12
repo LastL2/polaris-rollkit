@@ -1,22 +1,25 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023, Berachain Foundation. All rights reserved.
-// Use of this software is govered by the Business Source License included
-// in the LICENSE file of this repository and at www.mariadb.com/bsl11.
+// Copyright (c) 2024 Berachain Foundation
 //
-// ANY USE OF THE LICENSED WORK IN VIOLATION OF THIS LICENSE WILL AUTOMATICALLY
-// TERMINATE YOUR RIGHTS UNDER THIS LICENSE FOR THE CURRENT AND ALL OTHER
-// VERSIONS OF THE LICENSED WORK.
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
 //
-// THIS LICENSE DOES NOT GRANT YOU ANY RIGHT IN ANY TRADEMARK OR LOGO OF
-// LICENSOR OR ITS AFFILIATES (PROVIDED THAT YOU MAY USE A TRADEMARK OR LOGO OF
-// LICENSOR AS EXPRESSLY REQUIRED BY THIS LICENSE).
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
 //
-// TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
-// AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
-// EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
-// TITLE.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 package txpool
 
@@ -30,7 +33,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -40,6 +42,9 @@ import (
 func (m *Mempool) AnteHandle(
 	ctx sdk.Context, tx sdk.Tx, simulate bool, next sdk.AnteHandler,
 ) (sdk.Context, error) {
+	// The transaction put into this function by CheckTx
+	// is a transaction from CometBFT mempool.
+	telemetry.IncrCounter(float32(1), MetricKeyCometPoolTxs)
 	msgs := tx.GetMsgs()
 
 	// TODO: Record the time it takes to build a payload.
@@ -51,7 +56,7 @@ func (m *Mempool) AnteHandle(
 			if shouldEject := m.shouldEjectFromCometMempool(
 				ctx.BlockTime().Unix(), ethTx,
 			); shouldEject {
-				m.crc.DropRemoteTx(ethTx.Hash())
+				telemetry.IncrCounter(float32(1), MetricKeyAnteEjectedTxs)
 				return ctx, errors.New("eject from comet mempool")
 			}
 		}
@@ -67,19 +72,45 @@ func (m *Mempool) shouldEjectFromCometMempool(
 	if tx == nil {
 		return false
 	}
-	txHash := tx.Hash()
 
-	// Ejection conditions
-	// 1. If the transaction has been included in a block.
-	// 2. If the transaction has been in the mempool for longer than the configured timeout.
-	return m.includedCanonicalChain(txHash) ||
-		currentTime-m.crc.TimeFirstSeen(txHash) > m.lifetime ||
-		tx.GasPrice().Cmp(m.priceLimit) <= 0 ||
-		tx.GasFeeCap().Cmp(m.priceLimit) <= 0 || tx.GasTipCap().Cmp(m.priceLimit) <= 0
+	// First check things that are stateless.
+	if m.validateStateless(tx, currentTime) {
+		return true
+	}
+
+	// Then check for things that are stateful.
+	return m.validateStateful(tx)
+}
+
+// validateStateless returns whether the tx of the given hash is stateless.
+func (m *Mempool) validateStateless(tx *ethtypes.Transaction, currentTime int64) bool {
+	txHash := tx.Hash()
+	// 1. If the transaction has been in the mempool for longer than the configured timeout.
+	// 2. If the transaction's gas params are less than or equal to the configured limit.
+	expired := currentTime-m.crc.TimeFirstSeen(txHash) > m.lifetime
+	priceLeLimit := tx.GasPrice().Cmp(m.priceLimit) <= 0
+
+	if expired {
+		telemetry.IncrCounter(float32(1), MetricKeyAnteShouldEjectExpiredTx)
+	}
+	if priceLeLimit {
+		telemetry.IncrCounter(float32(1), MetricKeyAnteShouldEjectPriceLimit)
+	}
+
+	return expired || priceLeLimit
 }
 
 // includedCanonicalChain returns whether the tx of the given hash is included in the canonical
 // Eth chain.
-func (m *Mempool) includedCanonicalChain(hash common.Hash) bool {
-	return m.chain.GetTransactionLookup(hash) != nil
+func (m *Mempool) validateStateful(tx *ethtypes.Transaction) bool {
+	// // 1. If the transaction has been included in a block.
+	// signer := ethtypes.LatestSignerForChainID(m.chainConfig.ChainID)
+	// if _, err := ethtypes.Sender(signer, tx); err != nil {
+	// 	return true
+	// }
+
+	// tx.Nonce() <
+	included := m.chain.GetTransactionLookup(tx.Hash()) != nil
+	telemetry.IncrCounter(float32(1), MetricKeyAnteShouldEjectInclusion)
+	return included
 }

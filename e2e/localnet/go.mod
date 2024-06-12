@@ -1,6 +1,6 @@
 module github.com/berachain/polaris/e2e/localnet
 
-go 1.21.1
+go 1.21.6
 
 require (
 	github.com/berachain/polaris/contracts v0.0.4-alpha
@@ -43,7 +43,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/pprof v0.0.0-20240207164012-fb44976bdcd5 // indirect
+	github.com/google/pprof v0.0.0-20231101202521-4ca4178f5c7a // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect

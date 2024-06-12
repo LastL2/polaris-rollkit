@@ -1,22 +1,25 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023, Berachain Foundation. All rights reserved.
-// Use of this software is govered by the Business Source License included
-// in the LICENSE file of this repository and at www.mariadb.com/bsl11.
+// Copyright (c) 2024 Berachain Foundation
 //
-// ANY USE OF THE LICENSED WORK IN VIOLATION OF THIS LICENSE WILL AUTOMATICALLY
-// TERMINATE YOUR RIGHTS UNDER THIS LICENSE FOR THE CURRENT AND ALL OTHER
-// VERSIONS OF THE LICENSED WORK.
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
 //
-// THIS LICENSE DOES NOT GRANT YOU ANY RIGHT IN ANY TRADEMARK OR LOGO OF
-// LICENSOR OR ITS AFFILIATES (PROVIDED THAT YOU MAY USE A TRADEMARK OR LOGO OF
-// LICENSOR AS EXPRESSLY REQUIRED BY THIS LICENSE).
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
 //
-// TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
-// AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
-// EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
-// TITLE.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 package polar
 
@@ -205,10 +208,12 @@ func (b *backend) HeaderByNumber(
 	case rpc.PendingBlockNumber:
 		// TODO: handle "miner" stuff, Pending block is only known by the miner
 		block := b.polar.miner.PendingBlock()
-		if block == nil {
-			return nil, nil //nolint:nilnil // it's ok.
+		if block != nil {
+			return block.Header(), nil
 		}
-		return block.Header(), nil
+		// To improve client compatibility we return the latest state if
+		// pending is not available.
+		return b.polar.blockchain.CurrentHeader(), nil
 	case rpc.LatestBlockNumber:
 		return b.polar.blockchain.CurrentHeader(), nil
 	case rpc.FinalizedBlockNumber:
@@ -257,6 +262,14 @@ func (b *backend) BlockByNumber(
 	switch number {
 	case rpc.PendingBlockNumber:
 		block := b.polar.miner.PendingBlock()
+		if block == nil {
+			// To improve client compatibility we return the latest state if
+			// pending is not available.
+			header := b.polar.blockchain.CurrentBlock()
+			return b.polar.blockchain.GetBlock(
+				header.Hash(), header.Number.Uint64(),
+			), nil
+		}
 		return block, nil
 	// Otherwise resolve and return the block
 	case rpc.LatestBlockNumber:
@@ -320,15 +333,6 @@ func (b *backend) StateAndHeaderByNumber(
 	ctx context.Context,
 	number rpc.BlockNumber,
 ) (state.StateDB, *ethtypes.Header, error) {
-	// Pending state is only known by the miner
-	if number == rpc.PendingBlockNumber {
-		block, state := b.polar.miner.Pending()
-		if block == nil || state == nil {
-			return nil, nil, errors.New("pending state is not available")
-		}
-		return state, block.Header(), nil
-	}
-
 	// Otherwise resolve the block number and return its state
 	header, err := b.HeaderByNumber(ctx, number)
 	if err != nil {

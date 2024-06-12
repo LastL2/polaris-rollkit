@@ -1,6 +1,6 @@
 module github.com/berachain/polaris/eth
 
-go 1.21.1
+go 1.21.6
 
 // We replace `go-ethereum` with `polaris-geth` in order include our required changes.
 replace github.com/ethereum/go-ethereum => github.com/berachain/polaris-geth v1.13.10-2-polar
@@ -60,7 +60,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/pprof v0.0.0-20240207164012-fb44976bdcd5 // indirect
+	github.com/google/pprof v0.0.0-20231101202521-4ca4178f5c7a // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/graph-gophers/graphql-go v1.5.0 // indirect

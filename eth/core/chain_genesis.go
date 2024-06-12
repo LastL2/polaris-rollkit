@@ -21,31 +21,26 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package miner
+package core
 
 import (
-	"github.com/berachain/polaris/eth/core"
+	"errors"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/berachain/polaris/eth/core/state"
 
-	"github.com/ethereum/go-ethereum/beacon/engine"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
-// EnvelopeSerializer is used to convert an envelope into a byte slice that represents
-// a cosmos sdk.Tx.
-type (
-	EnvelopeSerializer interface {
-		ToSdkTxBytes(*engine.ExecutionPayloadEnvelope, uint64) ([]byte, error)
-	}
+// WriteGenesisBlock inserts the genesis block into the blockchain.
+func (bc *blockchain) WriteGenesisBlock(block *ethtypes.Block) error {
+	// Get the state with the latest finalize block context.
+	sp := bc.spf.NewPluginWithMode(state.Genesis)
+	state := state.NewStateDB(sp, bc.pp)
 
-	TxDecoder interface {
-		TxDecode(txBytes []byte) (sdk.Tx, error)
+	// TODO: add more validation here.
+	if block.NumberU64() != 0 {
+		return errors.New("not the genesis block")
 	}
-
-	// EVMKeeper is an interface that defines the methods needed for the EVM setup.
-	EVMKeeper interface {
-		// Setup initializes the EVM keeper.
-		Setup(core.Blockchain) error
-		GetHost() core.PolarisHostChain
-	}
-)
+	_, err := bc.WriteBlockAndSetHead(block, nil, nil, state, true)
+	return err
+}
