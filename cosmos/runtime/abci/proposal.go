@@ -38,15 +38,22 @@ import (
 
 var sleepOnce = false
 
+// PrepareProposalHook is a function executed after the default Polaris prepare proposal handler. This will be used
+// by World Engine EVM base shard implementation to inject side-channel messages.
+type PrepareProposalHook func(
+	ctx sdk.Context, req *cometabci.RequestPrepareProposal, resp *cometabci.ResponsePrepareProposal,
+) (*cometabci.ResponsePrepareProposal, error)
+
 // ProposalProvider is a struct that provides the abci functions required
 // for validators to propose blocks and validators/full nodes to process
 // said proposals.
 type ProposalProvider struct {
-	logger            log.Logger
-	preBlocker        sdk.PreBlocker
-	beginBlocker      sdk.BeginBlocker
-	wrappedMiner      *miner.Miner
-	wrappedBlockchain *chain.WrappedBlockchain
+	logger              log.Logger
+	preBlocker          sdk.PreBlocker
+	beginBlocker        sdk.BeginBlocker
+	prepareProposalHook PrepareProposalHook
+	wrappedMiner        *miner.Miner
+	wrappedBlockchain   *chain.WrappedBlockchain
 
 	// TODO: refactor validator commands out of the wbc and miner.
 	// valCmdProcessor   *ValidatorCommands
@@ -57,16 +64,17 @@ type ProposalProvider struct {
 // It takes a miner.Miner and a chain.WrappedBlockchain as
 // arguments and returns a pointer to the initialized ProposalProvider.
 func NewProposalProvider(
-	preBlocker sdk.PreBlocker, beginBlocker sdk.BeginBlocker,
+	preBlocker sdk.PreBlocker, beginBlocker sdk.BeginBlocker, prepareProposal PrepareProposalHook,
 	wrappedMiner *miner.Miner, wrappedBlockchain *chain.WrappedBlockchain,
 	logger log.Logger,
 ) *ProposalProvider {
 	return &ProposalProvider{
-		preBlocker:        preBlocker,
-		beginBlocker:      beginBlocker,
-		wrappedMiner:      wrappedMiner,
-		wrappedBlockchain: wrappedBlockchain,
-		logger:            logger,
+		preBlocker:          preBlocker,
+		beginBlocker:        beginBlocker,
+		prepareProposalHook: prepareProposal,
+		wrappedMiner:        wrappedMiner,
+		wrappedBlockchain:   wrappedBlockchain,
+		logger:              logger,
 	}
 }
 
@@ -104,7 +112,13 @@ func (pp *ProposalProvider) PrepareProposal(
 		time.Sleep(1 * time.Second)
 	}
 
-	return pp.wrappedMiner.PrepareProposal(ctx, req)
+	resp, err := pp.wrappedMiner.PrepareProposal(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Executes injected custom prepare proposal hook.
+	return pp.prepareProposalHook(ctx, req, resp)
 }
 
 // ProcessProposal processes the incoming proposal.
@@ -179,4 +193,12 @@ func (pp *ProposalProvider) simulateFinalizeBlock(ctx sdk.Context, req abciReque
 	}
 
 	return nil
+}
+
+// NoopPrepareProposalHook is a PrepareProposalHook implementation
+// that does nothing and simply returns the ResponsePrepareProposal as is.
+func NoopPrepareProposalHook(
+	_ sdk.Context, _ *cometabci.RequestPrepareProposal, resp *cometabci.ResponsePrepareProposal,
+) (*cometabci.ResponsePrepareProposal, error) {
+	return resp, nil
 }

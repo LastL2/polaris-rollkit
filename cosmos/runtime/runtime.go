@@ -141,7 +141,7 @@ func New(
 // It returns an error if the setup fails.
 func (p *Polaris) Build(
 	app CosmosApp, cosmHandler sdk.AnteHandler, ek EVMKeeper, allowedValMsgs map[string]sdk.Msg,
-	hook chain.PostBlockHookFn,
+	hook chain.PostBlockHookFn, prepareProposal polarabci.PrepareProposalHook,
 ) error {
 	// Wrap the geth miner and txpool with the cosmos miner and txpool.
 	p.WrappedMiner = miner.New(
@@ -153,7 +153,7 @@ func (p *Polaris) Build(
 	)
 
 	p.ProposalProvider = polarabci.NewProposalProvider(
-		app.PreBlocker, app.BeginBlocker,
+		app.PreBlocker, app.BeginBlocker, prepareProposal,
 		p.WrappedMiner, p.WrappedBlockchain,
 		p.logger.With("module", "polaris-proposal-provider"),
 	)

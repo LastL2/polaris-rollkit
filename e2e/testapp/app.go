@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
+	polarabci "github.com/berachain/polaris/cosmos/runtime/abci"
 	dbm "github.com/cosmos/cosmos-db"
 
 	"cosmossdk.io/depinject"
@@ -221,7 +222,7 @@ func NewPolarisApp(
 
 	// Setup Polaris Runtime.
 	if err = app.Polaris.Build(
-		app, cosmHandler, app.EVMKeeper, miner.DefaultAllowedMsgs, nil,
+		app, cosmHandler, app.EVMKeeper, miner.DefaultAllowedMsgs, nil, polarabci.NoopPrepareProposalHook,
 	); err != nil {
 		panic(err)
 	}
