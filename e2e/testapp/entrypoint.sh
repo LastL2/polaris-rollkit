@@ -19,6 +19,17 @@
 # MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 # TITLE.
 
+# start a local celestia devnet
+echo "starting local celestia devnet..."
+docker run --name celestia-node -dt \
+  --restart unless-stopped \
+  -p 26650:26650 \
+  -p 26657:26657 \
+  -p 26658:26658 \
+  -p 26659:26659 \
+  -p 9090:9090 \
+  ghcr.io/rollkit/local-celestia-devnet:latest
+
 KEYS[0]="dev0"
 KEYS[1]="dev1"
 KEYS[2]="dev2"
@@ -119,7 +130,7 @@ fi
 DA_BLOCK_HEIGHT=$(curl http://0.0.0.0:26657/block | jq -r '.result.block.header.height')
 echo $DA_BLOCK_HEIGHT
 
-AUTH_TOKEN=$(docker exec $(docker ps -q) celestia bridge auth admin --node.store /home/celestia/bridge)
+AUTH_TOKEN=$(docker exec celestia-node celestia bridge auth admin --node.store /home/celestia/bridge)
 
 # Start the node (remove the --pruning=nothing flag if historical queries are not needed)
 ./build/bin/polard start --pruning=nothing "$TRACE" --log_level $LOGLEVEL --api.enabled-unsafe-cors --api.enable --api.swagger --minimum-gas-prices=0.0001abera --home "$HOMEDIR" --rollkit.aggregator true --rollkit.da_auth_token=$AUTH_TOKEN --rollkit.da_namespace 00000000000000000000000000000000000000000008e5f679bf7116cb --rollkit.da_start_height $DA_BLOCK_HEIGHT --rollkit.da_block_time 2s
