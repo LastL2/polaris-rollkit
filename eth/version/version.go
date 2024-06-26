@@ -33,7 +33,7 @@ import (
 const (
 	govcsTimeLayout = "2006-01-02T15:04:05Z"
 	ourTimeLayout   = "20060102"
-	ourPath         = "github.com/berachain/polaris/eth" // Path to our module
+	ourPath         = "github.com/LastL2/polaris-rollkit/eth" // Path to our module
 )
 
 // These variables are set at build-time by the linker when the build is
@@ -75,7 +75,7 @@ func ClientName(clientIdentifier string) string {
 
 // Info returns build and platform information about the current binary.
 //
-// If the package that is currently executing is a prefixed by our go-ethereum
+// If the package that is currently executing is prefixed by our go-ethereum
 // module path, it will print out commit and date VCS information. Otherwise,
 // it will assume it's imported by a third-party and will return the imported
 // version and whether it was replaced by another module.

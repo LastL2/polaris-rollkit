@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	artioChainID = 80085
+	cubeRollChainID = 80085
 )
 
 var (
@@ -38,7 +38,7 @@ var (
 )
 
 var DefaultChainConfig = &params.ChainConfig{
-	ChainID:                       big.NewInt(artioChainID),
+	ChainID:                       big.NewInt(cubeRollChainID),
 	HomesteadBlock:                big.NewInt(0),
 	DAOForkBlock:                  big.NewInt(0),
 	DAOForkSupport:                true,

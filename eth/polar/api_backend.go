@@ -208,26 +208,26 @@ func (b *backend) HeaderByNumber(
 	case rpc.PendingBlockNumber:
 		// TODO: handle "miner" stuff, Pending block is only known by the miner
 		block := b.polar.miner.PendingBlock()
-		if block != nil {
-			return block.Header(), nil
+		if block == nil {
+			// To improve client compatibility we return the latest state if
+			// pending is not available.
+			return b.polar.blockchain.CurrentHeader(), nil
 		}
-		// To improve client compatibility we return the latest state if
-		// pending is not available.
-		return b.polar.blockchain.CurrentHeader(), nil
+		return block.Header(), nil
 	case rpc.LatestBlockNumber:
 		return b.polar.blockchain.CurrentHeader(), nil
 	case rpc.FinalizedBlockNumber:
 		block := b.polar.blockchain.CurrentFinalBlock()
-		if block != nil {
-			return block, nil
+		if block == nil {
+			return nil, errors.New("finalized block not found")
 		}
-		return nil, errors.New("finalized block not found")
+		return block, nil
 	case rpc.SafeBlockNumber:
 		block := b.polar.blockchain.CurrentSafeBlock()
-		if block != nil {
-			return block, nil
+		if block == nil {
+			return nil, errors.New("safe block not found")
 		}
-		return nil, errors.New("safe block not found")
+		return block, nil
 	case rpc.EarliestBlockNumber:
 		return b.polar.blockchain.GetHeaderByNumber(0), nil
 	default:
@@ -565,7 +565,7 @@ func (b *backend) Engine() consensus.Engine {
 	return b.polar.blockchain.Engine()
 }
 
-// GetBody retrieves the block body corresponding to block by has or number..
+// GetBody retrieves the block body corresponding to block by hash or number.
 func (b *backend) GetBody(
 	ctx context.Context,
 	hash common.Hash,

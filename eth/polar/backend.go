@@ -77,7 +77,7 @@ type Polaris struct {
 	txPool     *txpool.TxPool
 	miner      *miner.Miner
 
-	// apiBackend is utilize by the api handlers as a middleware between the
+	// apiBackend is utilized by the api handlers as a middleware between the
 	// JSON-RPC APIs and the core pieces.
 	apiBackend APIBackend
 	syncStatus SyncStatusProvider
